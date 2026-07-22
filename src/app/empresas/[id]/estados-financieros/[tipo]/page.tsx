@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { esAdminDeEmpresa } from "@/lib/auth";
 import { formatearFecha, SLUG_A_TIPO, TIPOS_AUXILIAR } from "@/lib/format";
 import { UploadAuxiliarForm } from "@/components/auxiliares/UploadAuxiliarForm";
 import { FacturasPendientesTable } from "@/components/auxiliares/FacturasPendientesTable";
@@ -14,13 +15,16 @@ export default async function EstadoFinancieroPage({
   const tipo = SLUG_A_TIPO[tipoSlug];
   if (!tipo) notFound();
 
-  const carga = await prisma.cargaAuxiliar.findFirst({
-    where: { empresaId, tipo },
-    orderBy: { createdAt: "desc" },
-    include: {
-      facturas: { orderBy: [{ entidadNombre: "asc" }, { fecha: "asc" }] },
-    },
-  });
+  const [carga, esAdmin] = await Promise.all([
+    prisma.cargaAuxiliar.findFirst({
+      where: { empresaId, tipo },
+      orderBy: { createdAt: "desc" },
+      include: {
+        facturas: { orderBy: [{ entidadNombre: "asc" }, { fecha: "asc" }] },
+      },
+    }),
+    esAdminDeEmpresa(empresaId),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -57,7 +61,7 @@ export default async function EstadoFinancieroPage({
               >
                 Descargar PDF
               </a>
-              <DeleteCargaButton empresaId={empresaId} cargaId={carga.id} />
+              {esAdmin && <DeleteCargaButton empresaId={empresaId} cargaId={carga.id} />}
             </div>
           </div>
           <FacturasPendientesTable facturas={carga.facturas} total={carga.totalSaldo} />

@@ -78,3 +78,25 @@ export async function requireEmpresaAccess(userId: string, empresaId: string) {
   }
   return membership;
 }
+
+// Los "MIEMBRO" pueden entrar a la empresa y subir auxiliares/balance, pero no pueden
+// eliminar cargas, editar los datos de la empresa ni administrar otros miembros — eso
+// requiere rol "ADMIN".
+export async function requireEmpresaAdmin(userId: string, empresaId: string) {
+  const membership = await requireEmpresaAccess(userId, empresaId);
+  if (membership.rol !== "ADMIN") {
+    throw new AuthError("Solo un administrador de la empresa puede hacer esto");
+  }
+  return membership;
+}
+
+// Para que las páginas puedan decidir qué mostrar (botones de eliminar, formularios de
+// administración) según el rol del usuario actual en esta empresa.
+export async function esAdminDeEmpresa(empresaId: string) {
+  const user = await getCurrentUser();
+  if (!user) return false;
+  const membership = await prisma.empresaMember.findUnique({
+    where: { userId_empresaId: { userId: user.id, empresaId } },
+  });
+  return membership?.rol === "ADMIN";
+}

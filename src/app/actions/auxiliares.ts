@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireUser, requireEmpresaAccess } from "@/lib/auth";
+import { requireUser, requireEmpresaAccess, requireEmpresaAdmin } from "@/lib/auth";
 import { parsearAuxiliar } from "@/lib/auxiliar-parser";
 import type { TipoAuxiliar } from "@/lib/format";
 
@@ -72,7 +72,7 @@ export async function deleteCargaAction(formData: FormData) {
   const user = await requireUser();
   const empresaId = String(formData.get("empresaId"));
   const cargaId = String(formData.get("cargaId"));
-  await requireEmpresaAccess(user.id, empresaId);
+  await requireEmpresaAdmin(user.id, empresaId);
 
   const carga = await prisma.cargaAuxiliar.findUnique({ where: { id: cargaId } });
   if (!carga || carga.empresaId !== empresaId) {

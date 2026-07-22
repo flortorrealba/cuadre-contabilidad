@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireUser, requireEmpresaAccess } from "@/lib/auth";
+import { requireUser, requireEmpresaAdmin } from "@/lib/auth";
 import type { ActionState } from "./auth";
 
 const empresaSchema = z.object({
@@ -39,7 +39,7 @@ export async function updateEmpresaAction(
   formData: FormData
 ): Promise<ActionState> {
   const user = await requireUser();
-  await requireEmpresaAccess(user.id, empresaId);
+  await requireEmpresaAdmin(user.id, empresaId);
 
   const parsed = empresaSchema.safeParse({
     nombre: formData.get("nombre"),
@@ -68,7 +68,7 @@ export async function addMemberAction(
   formData: FormData
 ): Promise<ActionState> {
   const user = await requireUser();
-  await requireEmpresaAccess(user.id, empresaId);
+  await requireEmpresaAdmin(user.id, empresaId);
 
   const parsed = miembroSchema.safeParse({ email: formData.get("email") });
   if (!parsed.success) {
