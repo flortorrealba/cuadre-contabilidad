@@ -44,7 +44,21 @@ export default async function EstadoFinancieroPage({
               {carga.archivoOrigen ?? "archivo subido"} · {carga.facturas.length} documento
               {carga.facturas.length === 1 ? "" : "s"} pendiente{carga.facturas.length === 1 ? "" : "s"}
             </p>
-            <DeleteCargaButton empresaId={empresaId} cargaId={carga.id} />
+            <div className="flex items-center gap-3">
+              <a
+                href={`/empresas/${empresaId}/estados-financieros/${tipoSlug}/export/excel`}
+                className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+              >
+                Descargar Excel
+              </a>
+              <a
+                href={`/empresas/${empresaId}/estados-financieros/${tipoSlug}/export/pdf`}
+                className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+              >
+                Descargar PDF
+              </a>
+              <DeleteCargaButton empresaId={empresaId} cargaId={carga.id} />
+            </div>
           </div>
           <FacturasPendientesTable facturas={carga.facturas} total={carga.totalSaldo} />
         </div>

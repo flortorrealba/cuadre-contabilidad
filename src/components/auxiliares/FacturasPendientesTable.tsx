@@ -14,7 +14,7 @@ export function FacturasPendientesTable({ facturas, total }: { facturas: Factura
   return (
     <div className="overflow-x-auto rounded-md border border-neutral-200 bg-white">
       <table className="w-full min-w-[720px] text-sm">
-        <thead className="bg-neutral-50 text-left text-xs uppercase text-neutral-500">
+        <thead className="bg-neutral-50 text-left text-xs font-bold uppercase text-neutral-700">
           <tr>
             <th className="px-3 py-2">RUT</th>
             <th className="px-3 py-2">Cliente / Proveedor / Persona</th>
