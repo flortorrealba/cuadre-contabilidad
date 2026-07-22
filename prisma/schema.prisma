@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String          @id @default(cuid())
+  email        String          @unique
+  passwordHash String
+  nombre       String
+  createdAt    DateTime        @default(now())
+  memberships  EmpresaMember[]
+  cargas       CargaAuxiliar[] @relation("CargaCreadaPor")
+}
+
+model Empresa {
+  id        String          @id @default(cuid())
+  nombre    String
+  rut       String?
+  createdAt DateTime        @default(now())
+  members   EmpresaMember[]
+  cargas    CargaAuxiliar[]
+}
+
+// Rol: "ADMIN" | "MIEMBRO"
+model EmpresaMember {
+  id        String   @id @default(cuid())
+  userId    String
+  empresaId String
+  rol       String   @default("ADMIN")
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, empresaId])
+}
+
+// tipo: "PROVEEDORES" | "HONORARIOS" | "CLIENTES". Cada carga reemplaza a la anterior del
+// mismo tipo para la misma empresa (siempre se muestra la última subida). Las facturas ya
+// vienen netas de notas de crédito y pagos aplicados (ver src/lib/auxiliar-parser.ts).
+model CargaAuxiliar {
+  id            String             @id @default(cuid())
+  empresaId     String
+  tipo          String
+  cuentaCodigo  String?
+  cuentaNombre  String?
+  periodoDesde  DateTime?
+  periodoHasta  DateTime?
+  archivoOrigen String?
+  totalSaldo    Float              @default(0)
+  createdAt     DateTime           @default(now())
+  creadoPorId   String?
+  empresa       Empresa            @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  creadoPor     User?              @relation("CargaCreadaPor", fields: [creadoPorId], references: [id])
+  facturas      FacturaPendiente[]
+
+  @@index([empresaId, tipo])
+}
+
+model FacturaPendiente {
+  id            String        @id @default(cuid())
+  cargaId       String
+  entidadRut    String
+  entidadNombre String
+  numero        String
+  fecha         DateTime?
+  tipoDocumento String?
+  glosa         String?
+  saldo         Float
+  carga         CargaAuxiliar @relation(fields: [cargaId], references: [id], onDelete: Cascade)
+
+  @@index([cargaId])
+}

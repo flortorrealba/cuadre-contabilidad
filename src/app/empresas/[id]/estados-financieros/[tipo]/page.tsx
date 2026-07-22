@@ -1,0 +1,56 @@
+import { notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { formatearFecha, SLUG_A_TIPO, TIPOS_AUXILIAR } from "@/lib/format";
+import { UploadAuxiliarForm } from "@/components/auxiliares/UploadAuxiliarForm";
+import { FacturasPendientesTable } from "@/components/auxiliares/FacturasPendientesTable";
+import { DeleteCargaButton } from "@/components/auxiliares/DeleteCargaButton";
+
+export default async function EstadoFinancieroPage({
+  params,
+}: {
+  params: Promise<{ id: string; tipo: string }>;
+}) {
+  const { id: empresaId, tipo: tipoSlug } = await params;
+  const tipo = SLUG_A_TIPO[tipoSlug];
+  if (!tipo) notFound();
+
+  const carga = await prisma.cargaAuxiliar.findFirst({
+    where: { empresaId, tipo },
+    orderBy: { createdAt: "desc" },
+    include: {
+      facturas: { orderBy: [{ entidadNombre: "asc" }, { fecha: "asc" }] },
+    },
+  });
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-neutral-900">{TIPOS_AUXILIAR[tipo]}</h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          Documentos pendientes de pago al cierre del período, netos de notas de crédito y pagos aplicados.
+        </p>
+      </div>
+
+      <UploadAuxiliarForm empresaId={empresaId} tipo={tipo} etiqueta={TIPOS_AUXILIAR[tipo]} />
+
+      {carga ? (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-neutral-500">
+            <p>
+              {carga.cuentaCodigo && carga.cuentaNombre ? `Cuenta ${carga.cuentaCodigo} · ${carga.cuentaNombre} · ` : ""}
+              {carga.periodoDesde && carga.periodoHasta
+                ? `período ${formatearFecha(carga.periodoDesde)} a ${formatearFecha(carga.periodoHasta)} · `
+                : ""}
+              {carga.archivoOrigen ?? "archivo subido"} · {carga.facturas.length} documento
+              {carga.facturas.length === 1 ? "" : "s"} pendiente{carga.facturas.length === 1 ? "" : "s"}
+            </p>
+            <DeleteCargaButton empresaId={empresaId} cargaId={carga.id} />
+          </div>
+          <FacturasPendientesTable facturas={carga.facturas} total={carga.totalSaldo} />
+        </div>
+      ) : (
+        <p className="text-sm text-neutral-500">Todavía no has subido el auxiliar de {TIPOS_AUXILIAR[tipo]}.</p>
+      )}
+    </div>
+  );
+}
