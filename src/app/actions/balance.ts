@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireUser, requireEmpresaAccess, requireEmpresaAdmin } from "@/lib/auth";
+import { requireUser, requireEmpresaAccess } from "@/lib/auth";
 import { parsearBalance } from "@/lib/balance-parser";
 
 export interface BalanceState {
@@ -67,7 +67,7 @@ export async function deleteBalanceAction(formData: FormData) {
   const user = await requireUser();
   const empresaId = String(formData.get("empresaId"));
   const cargaId = String(formData.get("cargaId"));
-  await requireEmpresaAdmin(user.id, empresaId);
+  await requireEmpresaAccess(user.id, empresaId);
 
   const carga = await prisma.cargaBalance.findUnique({ where: { id: cargaId } });
   if (!carga || carga.empresaId !== empresaId) {

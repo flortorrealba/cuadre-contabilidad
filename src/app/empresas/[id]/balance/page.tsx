@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { esAdminDeEmpresa } from "@/lib/auth";
 import { formatearFecha } from "@/lib/format";
 import { UploadBalanceForm } from "@/components/balance/UploadBalanceForm";
 import { BalanceTable } from "@/components/balance/BalanceTable";
@@ -8,14 +7,11 @@ import { DeleteBalanceButton } from "@/components/balance/DeleteBalanceButton";
 export default async function BalancePage({ params }: { params: Promise<{ id: string }> }) {
   const { id: empresaId } = await params;
 
-  const [carga, esAdmin] = await Promise.all([
-    prisma.cargaBalance.findFirst({
-      where: { empresaId },
-      orderBy: { createdAt: "desc" },
-      include: { cuentas: { orderBy: { codigo: "asc" } } },
-    }),
-    esAdminDeEmpresa(empresaId),
-  ]);
+  const carga = await prisma.cargaBalance.findFirst({
+    where: { empresaId },
+    orderBy: { createdAt: "desc" },
+    include: { cuentas: { orderBy: { codigo: "asc" } } },
+  });
 
   return (
     <div className="space-y-6">
@@ -51,7 +47,7 @@ export default async function BalancePage({ params }: { params: Promise<{ id: st
               >
                 Descargar PDF
               </a>
-              {esAdmin && <DeleteBalanceButton empresaId={empresaId} cargaId={carga.id} />}
+              <DeleteBalanceButton empresaId={empresaId} cargaId={carga.id} />
             </div>
           </div>
           <BalanceTable

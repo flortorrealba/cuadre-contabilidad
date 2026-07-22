@@ -24,7 +24,7 @@ export default async function MiembrosPage({ params }: { params: Promise<{ id: s
               <p className="text-xs text-neutral-500">{m.user.email}</p>
             </div>
             <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-700">
-              {m.rol === "ADMIN" ? "Administrador" : "Solo puede subir archivos"}
+              {m.rol === "ADMIN" ? "Administrador" : "Miembro"}
             </span>
           </li>
         ))}
@@ -35,8 +35,8 @@ export default async function MiembrosPage({ params }: { params: Promise<{ id: s
           <h2 className="text-sm font-semibold text-neutral-900">Agregar miembro</h2>
           <p className="mt-1 text-xs text-neutral-500">
             El usuario debe tener una cuenta creada previamente en la aplicación. Los miembros nuevos pueden
-            entrar y subir el Balance y los auxiliares, pero no pueden eliminar cargas, editar los datos de
-            la empresa ni administrar otros miembros.
+            entrar, y subir, eliminar y volver a subir el Balance y los auxiliares — pero no pueden editar
+            los datos de la empresa (Configuración) ni administrar otros miembros.
           </p>
           <div className="mt-3">
             <AddMemberForm empresaId={empresaId} />
