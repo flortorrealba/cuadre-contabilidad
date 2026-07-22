@@ -12,6 +12,11 @@ import * as XLSX from "xlsx";
 // través de la columna "Voucher") y el saldo de cada documento queda como Crédito - Débito.
 // Esto se validó contra el resultado que arma la macro de Excel de la empresa para las
 // cuentas de Proveedores y Honorarios, y coincide documento por documento.
+//
+// Ojo: iContador exporta este mismo reporte con distintas columnas según el tipo ("Facturas
+// Pendientes de Pago" agrega una columna "F. Pago" que no trae "Honorarios Pendientes de
+// Pago"), así que las posiciones de Débito/Crédito varían — por eso las columnas se detectan
+// por su nombre en la fila de encabezado, nunca por posición fija.
 
 function limpiarNumero(valor: unknown): number {
   const texto = String(valor ?? "").trim();
@@ -30,6 +35,16 @@ function parseFechaDDMMYYYY(valor: unknown): Date | null {
   const [, d, mo, y] = m;
   const fecha = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d)));
   return Number.isNaN(fecha.getTime()) ? null : fecha;
+}
+
+function normalizarEncabezado(valor: unknown): string {
+  return String(valor ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[°º.]/g, "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, " ");
 }
 
 // RUT chileno con puntos de miles y dígito verificador (ej: "76.529.443-6"). Sirve para
@@ -75,6 +90,58 @@ interface FacturaAcumulada {
   haber: number;
 }
 
+interface ColumnasDocumento {
+  fecha: number;
+  tipo: number;
+  numero: number;
+  voucher: number;
+  glosa: number;
+  debito: number;
+  credito: number;
+}
+
+const ALIAS_COLUMNAS_DOCUMENTO: Record<string, keyof ColumnasDocumento> = {
+  FECHA: "fecha",
+  TIPO: "tipo",
+  NUMERO: "numero",
+  VOUCHER: "voucher",
+  GLOSA: "glosa",
+  DEBITO: "debito",
+  CREDITO: "credito",
+};
+
+function detectarColumnas(fila: unknown[]): ColumnasDocumento | null {
+  const columnas: Partial<ColumnasDocumento> = {};
+  fila.forEach((celda, idx) => {
+    const clave = ALIAS_COLUMNAS_DOCUMENTO[normalizarEncabezado(celda)];
+    if (clave && columnas[clave] === undefined) {
+      columnas[clave] = idx;
+    }
+  });
+  if (
+    columnas.fecha === undefined ||
+    columnas.numero === undefined ||
+    columnas.debito === undefined ||
+    columnas.credito === undefined
+  ) {
+    return null;
+  }
+  return {
+    fecha: columnas.fecha,
+    tipo: columnas.tipo ?? -1,
+    numero: columnas.numero,
+    voucher: columnas.voucher ?? -1,
+    glosa: columnas.glosa ?? -1,
+    debito: columnas.debito,
+    credito: columnas.credito,
+  };
+}
+
+function celda(fila: unknown[], indice: number): unknown {
+  if (indice < 0) return null;
+  return fila[indice] ?? null;
+}
+
 export function parsearAuxiliar(buffer: Buffer): AuxiliarParseado {
   const filas = leerFilas(buffer);
 
@@ -83,6 +150,7 @@ export function parsearAuxiliar(buffer: Buffer): AuxiliarParseado {
   let periodoDesde: Date | null = null;
   let periodoHasta: Date | null = null;
   let filaEncabezado = -1;
+  let columnas: ColumnasDocumento | null = null;
 
   for (let i = 0; i < filas.length; i++) {
     const fila = filas[i];
@@ -99,14 +167,16 @@ export function parsearAuxiliar(buffer: Buffer): AuxiliarParseado {
     if (String(fila[3] ?? "").trim().toUpperCase() === "HASTA") {
       periodoHasta = parseFechaDDMMYYYY(fila[4]);
     }
-    if (String(fila[0] ?? "").trim() === "Fecha" && String(fila[1] ?? "").trim().startsWith("Fecha")) {
+    const posiblesColumnas = detectarColumnas(fila);
+    if (posiblesColumnas) {
       filaEncabezado = i;
+      columnas = posiblesColumnas;
       break;
     }
   }
-  if (filaEncabezado === -1) {
+  if (filaEncabezado === -1 || !columnas) {
     throw new Error(
-      'No se encontró la tabla de documentos (fila con encabezados "Fecha", "Fecha Doc", ...). ¿Es un reporte de Facturas/Honorarios Pendientes de Pago de iContador?'
+      'No se encontró la tabla de documentos (fila con encabezados "Fecha", "Número", "Débito", "Crédito", ...). ¿Es un reporte de Facturas/Honorarios Pendientes de Pago de iContador?'
     );
   }
 
@@ -137,28 +207,27 @@ export function parsearAuxiliar(buffer: Buffer): AuxiliarParseado {
 
   for (let i = filaEncabezado + 1; i < filas.length; i++) {
     const fila = filas[i];
+    if (fila.every((c) => c === null || c === undefined || String(c).trim() === "")) continue;
+
     const c0 = String(fila[0] ?? "").trim();
     const c1 = String(fila[1] ?? "").trim();
-    const c6 = String(fila[6] ?? "").trim();
-    const c7 = String(fila[7] ?? "").trim();
-
-    if (!c0 && !c1 && !c6 && !c7) continue;
 
     if (c0 === "TOTAL") {
       cerrarEntidad();
       break;
     }
 
-    if (esFilaFecha(c0)) {
-      const debe = limpiarNumero(fila[6]);
-      const haber = limpiarNumero(fila[7]);
+    const fechaDocumento = celda(fila, columnas.fecha);
+    if (esFilaFecha(fechaDocumento)) {
+      const debe = limpiarNumero(celda(fila, columnas.debito));
+      const haber = limpiarNumero(celda(fila, columnas.credito));
 
       // Las notas de crédito o pagos traen su propio número en la columna "Número", pero la
       // columna "Voucher" referencia el documento que están liquidando con un patrón como
       // "NCE - 10130487" o "FAE - 4102". Cuando esa referencia apunta a un documento ya
       // abierto en este bloque, se acumula ahí en vez de crear uno nuevo.
-      const numeroPropio = String(fila[3] ?? "").trim();
-      const voucher = String(fila[4] ?? "").trim();
+      const numeroPropio = String(celda(fila, columnas.numero) ?? "").trim();
+      const voucher = String(celda(fila, columnas.voucher) ?? "").trim();
       const referencia = voucher.match(/^\S+\s*-\s*(\S+)$/)?.[1];
       const numero = referencia && porNumero.has(referencia) ? referencia : numeroPropio;
 
@@ -168,9 +237,9 @@ export function parsearAuxiliar(buffer: Buffer): AuxiliarParseado {
           entidadRut,
           entidadNombre,
           numero,
-          fecha: parseFechaDDMMYYYY(c0),
-          tipoDocumento: String(fila[2] ?? "").trim() || null,
-          glosa: String(fila[5] ?? "").trim() || null,
+          fecha: parseFechaDDMMYYYY(fechaDocumento),
+          tipoDocumento: String(celda(fila, columnas.tipo) ?? "").trim() || null,
+          glosa: String(celda(fila, columnas.glosa) ?? "").trim() || null,
           debe: 0,
           haber: 0,
         };
@@ -181,14 +250,6 @@ export function parsearAuxiliar(buffer: Buffer): AuxiliarParseado {
       continue;
     }
 
-    if (c7 === "Saldo :") continue;
-
-    // Fila de subtotal por entidad: sin fecha/nombre pero con débito o crédito acumulado.
-    if (!c0 && !c1 && (c6 || c7)) {
-      cerrarEntidad();
-      continue;
-    }
-
     // Fila de encabezado de entidad: RUT + Nombre.
     if (c0 && c1) {
       cerrarEntidad();
@@ -196,6 +257,9 @@ export function parsearAuxiliar(buffer: Buffer): AuxiliarParseado {
       entidadNombre = c1;
       continue;
     }
+
+    // Cualquier otra fila (marcador "Saldo :", subtotal por entidad, etc.) no se usa: el
+    // saldo de cada documento se recalcula desde Débito/Crédito, no desde estas columnas.
   }
 
   const totalSaldo = facturas.reduce((suma, f) => suma + f.saldo, 0);
