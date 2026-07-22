@@ -21,6 +21,12 @@ export default async function EmpresaLayout({
   });
   if (!membership) notFound();
 
+  const [tieneBalance, tieneAuxiliar] = await Promise.all([
+    prisma.cargaBalance.findFirst({ where: { empresaId }, select: { id: true } }),
+    prisma.cargaAuxiliar.findFirst({ where: { empresaId }, select: { id: true } }),
+  ]);
+  const tieneDatosParaDescargar = Boolean(tieneBalance || tieneAuxiliar);
+
   const tabsEstadosFinancieros = [
     { href: `/empresas/${empresaId}/balance`, label: "Balance" },
     { href: `/empresas/${empresaId}/estados-financieros/proveedores`, label: TIPOS_AUXILIAR.PROVEEDORES },
@@ -34,12 +40,31 @@ export default async function EmpresaLayout({
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href="/empresas" className="text-sm text-neutral-500 hover:underline">
-          ← Todas las empresas
-        </Link>
-        <h1 className="mt-1 text-2xl font-bold text-neutral-900">{membership.empresa.nombre}</h1>
-        {membership.empresa.rut && <p className="text-sm text-neutral-500">{membership.empresa.rut}</p>}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Link href="/empresas" className="text-sm text-neutral-500 hover:underline">
+            ← Todas las empresas
+          </Link>
+          <h1 className="mt-1 text-2xl font-bold text-neutral-900">{membership.empresa.nombre}</h1>
+          {membership.empresa.rut && <p className="text-sm text-neutral-500">{membership.empresa.rut}</p>}
+        </div>
+        {tieneDatosParaDescargar && (
+          <div className="flex items-center gap-3 pt-1">
+            <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Descargar todo</span>
+            <a
+              href={`/empresas/${empresaId}/export/excel`}
+              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+            >
+              Excel
+            </a>
+            <a
+              href={`/empresas/${empresaId}/export/pdf`}
+              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+            >
+              PDF
+            </a>
+          </div>
+        )}
       </div>
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Estados Financieros</p>
