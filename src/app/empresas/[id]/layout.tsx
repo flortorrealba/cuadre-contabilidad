@@ -22,6 +22,7 @@ export default async function EmpresaLayout({
   if (!membership) notFound();
 
   const tabsEstadosFinancieros = [
+    { href: `/empresas/${empresaId}/balance`, label: "Balance" },
     { href: `/empresas/${empresaId}/estados-financieros/proveedores`, label: TIPOS_AUXILIAR.PROVEEDORES },
     { href: `/empresas/${empresaId}/estados-financieros/honorarios`, label: TIPOS_AUXILIAR.HONORARIOS },
     { href: `/empresas/${empresaId}/estados-financieros/clientes`, label: TIPOS_AUXILIAR.CLIENTES },

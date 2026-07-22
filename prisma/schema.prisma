@@ -15,6 +15,7 @@ model User {
   createdAt    DateTime        @default(now())
   memberships  EmpresaMember[]
   cargas       CargaAuxiliar[] @relation("CargaCreadaPor")
+  balances     CargaBalance[]  @relation("CargaBalanceCreadaPor")
 }
 
 model Empresa {
@@ -24,6 +25,7 @@ model Empresa {
   createdAt DateTime        @default(now())
   members   EmpresaMember[]
   cargas    CargaAuxiliar[]
+  balances  CargaBalance[]
 }
 
 // Rol: "ADMIN" | "MIEMBRO"
@@ -72,6 +74,43 @@ model FacturaPendiente {
   glosa         String?
   saldo         Float
   carga         CargaAuxiliar @relation(fields: [cargaId], references: [id], onDelete: Cascade)
+
+  @@index([cargaId])
+}
+
+// Balance General (8 Columnas) que exporta iContador. Cada carga reemplaza a la anterior de
+// la misma empresa (siempre se muestra la última subida) — ver src/lib/balance-parser.ts.
+model CargaBalance {
+  id            String         @id @default(cuid())
+  empresaId     String
+  periodoDesde  DateTime?
+  periodoHasta  DateTime?
+  archivoOrigen String?
+  totalDebitos  Float          @default(0)
+  totalCreditos Float          @default(0)
+  createdAt     DateTime       @default(now())
+  creadoPorId   String?
+  empresa       Empresa        @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  creadoPor     User?          @relation("CargaBalanceCreadaPor", fields: [creadoPorId], references: [id])
+  cuentas       CuentaBalance[]
+
+  @@index([empresaId])
+}
+
+model CuentaBalance {
+  id        String       @id @default(cuid())
+  cargaId   String
+  codigo    String?
+  nombre    String
+  debitos   Float        @default(0)
+  creditos  Float        @default(0)
+  deudor    Float        @default(0)
+  acreedor  Float        @default(0)
+  activo    Float        @default(0)
+  pasivo    Float        @default(0)
+  perdidas  Float        @default(0)
+  ganancias Float        @default(0)
+  carga     CargaBalance @relation(fields: [cargaId], references: [id], onDelete: Cascade)
 
   @@index([cargaId])
 }
