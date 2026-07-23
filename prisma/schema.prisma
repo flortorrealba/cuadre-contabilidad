@@ -14,8 +14,24 @@ model User {
   nombre       String
   createdAt    DateTime        @default(now())
   memberships  EmpresaMember[]
-  cargas       CargaAuxiliar[] @relation("CargaCreadaPor")
-  balances     CargaBalance[]  @relation("CargaBalanceCreadaPor")
+  cargas       CargaAuxiliar[]      @relation("CargaCreadaPor")
+  balances     CargaBalance[]       @relation("CargaBalanceCreadaPor")
+  resetTokens  PasswordResetToken[]
+}
+
+// Token de un solo uso para el flujo "Olvidé mi contraseña". Se guarda el hash (SHA-256),
+// nunca el token en texto plano — el link que recibe el usuario por correo trae el token
+// real, y acá solo se compara el hash. Expira a la hora de creado.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Empresa {

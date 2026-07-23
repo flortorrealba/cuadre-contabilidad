@@ -1,9 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { randomBytes, createHash } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createSession, destroySession, hashPassword, verifyPassword, requireUser } from "@/lib/auth";
+import { enviarCorreoRecuperacion, obtenerUrlBase } from "@/lib/email";
 
 export interface ActionState {
   error?: string;
@@ -108,4 +110,111 @@ export async function cambiarPasswordAction(
   });
 
   return { ok: true };
+}
+
+function hashToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+const RESET_TOKEN_DURATION_MS = 60 * 60 * 1000; // 1 hora
+
+const olvidePasswordSchema = z.object({
+  email: z.email("Correo inválido"),
+});
+
+export interface OlvidePasswordState {
+  error?: string;
+  ok?: boolean;
+}
+
+export async function requestPasswordResetAction(
+  _prevState: OlvidePasswordState,
+  formData: FormData
+): Promise<OlvidePasswordState> {
+  const parsed = olvidePasswordSchema.safeParse({ email: formData.get("email") });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const user = await prisma.user.findUnique({ where: { email: parsed.data.email.toLowerCase() } });
+
+  // No revelamos si el correo existe o no, para no filtrar qué correos están registrados.
+  if (user) {
+    try {
+      const token = randomBytes(32).toString("hex");
+      await prisma.$transaction([
+        prisma.passwordResetToken.deleteMany({ where: { userId: user.id, usedAt: null } }),
+        prisma.passwordResetToken.create({
+          data: {
+            userId: user.id,
+            tokenHash: hashToken(token),
+            expiresAt: new Date(Date.now() + RESET_TOKEN_DURATION_MS),
+          },
+        }),
+      ]);
+
+      const resetUrl = `${obtenerUrlBase()}/restablecer-contrasena?token=${token}`;
+      await enviarCorreoRecuperacion(user.email, user.nombre, resetUrl);
+    } catch (error) {
+      return {
+        error:
+          error instanceof Error
+            ? `No se pudo enviar el correo: ${error.message}`
+            : "No se pudo enviar el correo de recuperación",
+      };
+    }
+  }
+
+  return { ok: true };
+}
+
+const restablecerPasswordSchema = z
+  .object({
+    token: z.string().min(1),
+    passwordNueva: z.string().min(8, "La nueva contraseña debe tener al menos 8 caracteres"),
+    passwordConfirmacion: z.string().min(1, "Confirma tu nueva contraseña"),
+  })
+  .refine((data) => data.passwordNueva === data.passwordConfirmacion, {
+    message: "Las contraseñas no coinciden",
+    path: ["passwordConfirmacion"],
+  });
+
+export interface RestablecerPasswordState {
+  error?: string;
+}
+
+export async function resetPasswordAction(
+  _prevState: RestablecerPasswordState,
+  formData: FormData
+): Promise<RestablecerPasswordState> {
+  const parsed = restablecerPasswordSchema.safeParse({
+    token: formData.get("token"),
+    passwordNueva: formData.get("passwordNueva"),
+    passwordConfirmacion: formData.get("passwordConfirmacion"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const registro = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: hashToken(parsed.data.token) },
+  });
+
+  if (!registro || registro.usedAt || registro.expiresAt < new Date()) {
+    return { error: "Este link de recuperación no es válido o ya venció. Solicita uno nuevo." };
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: registro.userId },
+      data: { passwordHash: await hashPassword(parsed.data.passwordNueva) },
+    }),
+    prisma.passwordResetToken.update({
+      where: { id: registro.id },
+      data: { usedAt: new Date() },
+    }),
+  ]);
+
+  await createSession(registro.userId);
+  redirect("/empresas");
 }

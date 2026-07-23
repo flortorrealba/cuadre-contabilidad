@@ -32,7 +32,14 @@ auxiliar.
 4. En **Settings → Environment Variables**, agrega una variable llamada
    `AUTH_SECRET` con cualquier texto largo y aleatorio (por ejemplo, generado
    en [randomkeygen.com](https://randomkeygen.com)).
-5. Click en **Deploy**. Cuando termine, Vercel te da una URL
+5. Para que funcione "Olvidé mi contraseña", agrega también `RESEND_API_KEY`:
+   1. Crea una cuenta gratis en [resend.com](https://resend.com) (no pide
+      tarjeta de crédito).
+   2. En el panel, ve a **API Keys → Create API Key** y cópiala.
+   3. En Vercel, agrégala como variable de entorno `RESEND_API_KEY`.
+   - Sin esta variable, el resto de la app funciona igual — solo el link de
+     recuperación de contraseña no va a poder enviar el correo.
+6. Click en **Deploy**. Cuando termine, Vercel te da una URL
    (`https://tu-proyecto.vercel.app`) — esa es tu app, lista para usar desde
    cualquier navegador, sin instalar nada.
 
@@ -62,6 +69,13 @@ Facturas/Honorarios Pendientes de Pago que exporta iContador, hoja "ORIGEN").
    Débito/Crédito por documento (incluyendo las notas de crédito o pagos que
    lo referencian), en vez de leer esa columna directamente. Ver
    `src/lib/auxiliar-parser.ts`.
+4. **Roles**: quien crea una empresa queda como Administrador (puede editar la
+   empresa y administrar miembros). Los miembros invitados pueden subir,
+   eliminar y volver a subir el Balance y los auxiliares, pero no pueden
+   editar la empresa ni agregar otros miembros.
+5. **Recuperar contraseña**: desde "Ingresar" hay un link "¿Olvidaste tu
+   contraseña?" que envía un correo con un link de un solo uso (válido 1
+   hora) para crear una contraseña nueva. Requiere `RESEND_API_KEY`.
 
 ## Comandos útiles
 
