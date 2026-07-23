@@ -8,8 +8,16 @@ function getResend() {
   return new Resend(apiKey);
 }
 
+// Importante: NUNCA se debe usar VERCEL_URL como base para links que se envían por correo —
+// esa variable apunta al deployment específico que está corriendo (una URL de preview con un
+// hash aleatorio), que Vercel protege con su propio SSO. Al pasar por esa protección, la
+// cadena de redirecciones de Vercel pierde el query string y el link llega sin el token.
+// VERCEL_PROJECT_PRODUCTION_URL, en cambio, es el dominio de producción estable del proyecto
+// (público, sin esa protección), sin importar desde qué deployment se esté ejecutando el
+// código — por eso se prefiere. APP_URL permite fijarlo a mano si se necesita.
 export function obtenerUrlBase() {
   if (process.env.APP_URL) return process.env.APP_URL;
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return "http://localhost:3000";
 }
